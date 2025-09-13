@@ -106,11 +106,16 @@ for i,arg in enumerate(sys.argv[1:]):
         indexes = arg 
     if i == 7:
         num_arg_PCA = arg 
+
+# read in the data
+
+data=np.transpose(np.loadtxt(path_in+"Data.txt"))
         
 # removes variables if needed
    
 if remove:
     data = remove_data(indexes, data)
+
 
 #basic parameters extracted 
 
@@ -125,7 +130,6 @@ print("Normalizing variables")
 
 for var in range(0,n_variables):
     data[:,var] = (data[:,var] - np.mean(data[:,var]))/np.std(data[:,var])
-    
 
 data_in = data[:,:n_inputs]
 data_out = data[:,n_inputs:]
@@ -133,6 +137,7 @@ data_out = data[:,n_inputs:]
 if PCA:
     print("Applying PCA")
     data_in = reduce_features_PCA(data_in, inputs, num_arg_PCA)
+    n_inputs = num_arg_PCA    
 
 # split into training and validation - 80% training, 20% validation
 
@@ -145,16 +150,20 @@ outputs_val = data_out[int(0.8*n_points):,:]
 print("defining NN model")   
 NN_model_defined = NN_model_def(n_inputs, n_outputs, hidlayer_1=int(5*12*n_inputs), hidlayer_2=int(5*8*n_inputs), hidlayer_3=(5*4*n_inputs), dropout_value=0.3)  # fixed architecture
 
-print("training NN model")
-NN_model_trained = NN_model_train(inputs_train, outputs_train, model_input=NN_model_defined, epochs_input=5, batch_input=32, splits_input=0.2, callback_inp=2)
+# run across 15 ensemble members in deep ensemble
 
-print("producing predictions of validation data")
-predictions_val = predict(NN_model_trained, inputs_val)
-np.savetxt(path_out+"predicted_validation.txt", predictions_val)  # save predictions
-np.savetxt(path_out+"validation.txt", outputs_val)
+for ensemble_mem in range(0,15):
 
-print("saving model")
-NN_model_trained.save(path_out+"weights")
+    print("training NN model " + str(ensemble_mem))
+    NN_model_trained = NN_model_train(inputs_train, outputs_train, model_input=NN_model_defined, epochs_input=5, batch_input=32, splits_input=0.2, callback_inp=2)
+
+    print("producing predictions of validation data")
+    predictions_val = predict(NN_model_trained, inputs_val)
+    np.savetxt(path_out+"predicted_validation_" + str(ensemble_mem) + ".txt", predictions_val)  # save predictions
+    np.savetxt(path_out+"validation_" + str(ensemble_mem) + ".txt", outputs_val)
+
+    print("saving model")
+    NN_model_trained.save(path_out+"weights_"+str(ensemble_mem))
 
 
 
