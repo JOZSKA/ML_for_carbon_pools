@@ -1,11 +1,16 @@
+# JS April 2025
+
+# This code produces 1D flattened arrays consistent across all the model input and output variables. This intermediate approach is used as the ANN training/validation/test data were gathered through different files 
+# with different data format. The role of this code is to save them in consistent format across all the ANN inputs and outputs. The data are saved for separate years in .nc files, a separate piece of code then picks the desired
+# years to produce the final training/validation/test arrays. The code takes as arguments the path to baseline directory with inputs, path to output directory and the year processed. Some optional arguments can be provided as well.
+
+
+
 from netCDF4 import Dataset
 import numpy as np
 from matplotlib import pyplot as plt
-import sys, time
+import sys, time, ast
 
-
-# This produces 1D flattened arrays with consistent orderings for all the model input and output variables. The data are subsequently structured in 2D arrays and cleaned by another piece of code. 
-# JS April 2025
 
 
 def masking(path, variable):       # creates a mask field
@@ -20,7 +25,7 @@ def masking(path, variable):       # creates a mask field
     return mask
     
     
-def produce_1D_structural(year, monthrange, pathin, month_days, mask):       # creates a 1D flattened output .nc file for structural variables
+def produce_1D_structural(year, monthrange, pathin, month_days, mask):       # adds to 1D flattened output .nc the structural inputs (latitude, longitude, time, bathymetry ...)
     i=Dataset(pathin)
     lats = np.array(i.variables["lat"])
     lons = np.array(i.variables["lon"])
@@ -56,7 +61,7 @@ def produce_1D_structural(year, monthrange, pathin, month_days, mask):       # c
     
 
 
-def produce_1D(year, months, monthrange,  variables_exclude, path_indir, mask):          # creates a 1D flattened output .nc file for non-structural variables other than rivers
+def produce_1D(year, months, monthrange,  variables_exclude, path_indir, mask):          # adds to 1D flattened output .nc the non-structural inputs other than rivers (atmospheric, observable variables)
     
     i=Dataset(path_indir+year+"_"+months[0]+".nc")
     
@@ -97,7 +102,7 @@ def produce_1D(year, months, monthrange,  variables_exclude, path_indir, mask): 
 
 
 
-def produce_1D_rivers(year, monthrange, month_days, variables_exclude, path_indir, mask):    # creates a 1D output .nc file for riverine variables
+def produce_1D_rivers(year, monthrange, month_days, variables_exclude, path_indir, mask):    # adds to 1D flattened output .nc the river inputs
        
     i=Dataset(path_indir+year+".nc")
     list_outputs = i.variables.keys()
@@ -150,42 +155,64 @@ def produce_1D_rivers(year, monthrange, month_days, variables_exclude, path_indi
 
 
 
-# read externally the key input arguments
+# read externally the key arguments i = 3...6 are optional..
 
 for i,arg in enumerate(sys.argv[1:]):
     if i == 0:
-        type_run = arg   # which run is veing used, reanalysis, or free run
-    if i == 1:
         path_in = arg  # path with inputs, structure is expected
-    if i == 2:
+    if i == 1:
         path_out = arg  # path with outputs
+    if i == 2:
+        year = arg   # year being processed
+    if i == 3:
+        months = ast.literal_eval(arg)   # months in the year included
+    if i == 4:
+        monthrange = ast.literal_eval(arg)   
+    if i == 5:
+        month_days = ast.literal_eval(arg) 
+    if i == 6:
+        variables_exclude = ast.literal_eval(arg) 
 
-
-
-mask=masking(path_in+"/data/Runs_data/Coarsened/"+type_run+"/Surf_outputs_coars_2016_05.nc", "P1_Chl")   #create a mask field
+mask=masking(path_in+"/Surf_outputs_coars_2016_05.nc", "P1_Chl")   #create a mask field
 
 epsilon=10**(-9)
 
-for year in ["2016", "2017", "2018", "2019", "2020"]:    # loop through years and create for each year the 1D array in form of .nc output containing all the NN input and output variables
+# if optional inputs weren't provided then give default settings for some inputs into the functions
 
-    print(year)
+try:
+    months
+except NameError:
+    months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]  
 
-    months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+try:
+    monthrange
+except NameError:
     monthrange = [0,12]
+
+try:
+    month_days
+except NameError:
     month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    yearstart=0
+
+try:
+    variables_exclude
+except NameError:
+    variables_exclude = []
+
+
+# calls the key functions
        
-    o=Dataset(path_out+"/"+type_run+"/1D_outputs_"+year+".nc", "w", format="NETCDF4_CLASSIC")
-    produce_1D_structural(year, monthrange, pathin=path_in+"/data/Forcings/Coarsened/Bathymetry/Coords_bath_coars.nc", month_days=month_days, mask=mask)
-    produce_1D(year, months, monthrange, variables_exclude=[], path_indir = path_in+"/data/Runs_data/Coarsened/"+type_run+"/Surf_outputs_coars_", mask=mask)
-    produce_1D(year, months, monthrange,  variables_exclude=[], path_indir = path_in+"/data/Runs_data/Coarsened/"+type_run+"/Remaining_surf_outputs_coars_", mask=mask)
-    produce_1D(year, months, monthrange,  variables_exclude=[], path_indir = path_in+"/data/Runs_data/Coarsened/"+type_run+"/Detritus_vert_av_coars_", mask=mask)
-    produce_1D(year, months, monthrange,  variables_exclude=[], path_indir = path_in+"/data/Forcings/Coarsened/Atmospheric/Atmos_coars_", mask=mask)
-    produce_1D(year, months, monthrange,  variables_exclude=["Tot_det_b50m"], path_indir = path_in+"/data/Runs_data/Coarsened/"+type_run+"/Depth_outputs_coars_", mask=mask)
-    produce_1D(year, months, monthrange,  variables_exclude=[], path_indir = path_in+"/data/Runs_data/Coarsened/"+type_run+"/Remaining_depth_outputs_coars_", mask=mask)
-    produce_1D_rivers(year, monthrange, month_days=[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], variables_exclude=[], path_indir = path_in+"/data/Forcings/Coarsened/Riverine/NOWMAPS_rivers_sprd.coars_", mask=mask)
+o=Dataset(path_out+"/1D_outputs_"+year+".nc", "w", format="NETCDF4_CLASSIC")
+produce_1D_structural(year, monthrange, pathin=path_in+"/Coords_bath_coars.nc", month_days=month_days, mask=mask)
+produce_1D(year, months, monthrange, variables_exclude, path_indir = path_in+"Surf_outputs_coars_", mask=mask)
+produce_1D(year, months, monthrange,  variables_exclude, path_indir = path_in+"Remaining_surf_outputs_coars_", mask=mask)
+produce_1D(year, months, monthrange,  variables_exclude, path_indir = path_in+"Detritus_vert_av_coars_", mask=mask)
+produce_1D(year, months, monthrange,  variables_exclude, path_indir = path_in+"Atmos_coars_", mask=mask)
+produce_1D(year, months, monthrange,  variables_exclude=["Tot_det_b50m"], path_indir = path_in+"Depth_outputs_coars_", mask=mask)
+produce_1D(year, months, monthrange,  variables_exclude, path_indir = path_in+"Remaining_depth_outputs_coars_", mask=mask)
+produce_1D_rivers(year, monthrange, month_days, variables_exclude, path_indir = path_in+"NOWMAPS_rivers_sprd.coars_", mask=mask)
  
-    o.close()
+o.close()
         
    
     
