@@ -1,5 +1,5 @@
 import tensorflow as tf
-from sklearn.decomposition import PCA, train_test_split
+from sklearn.decomposition import PCA
 from joblib import dump, load
 import shap
 import keras
@@ -8,11 +8,19 @@ from tensorflow.keras.optimizers import Adam
 import numpy as np
 
 
+# r2 square
+
+def r2_square(y_true, y_pred):
+    ss_res = tf.reduce_sum(tf.square(y_true - y_pred))
+    ss_tot = tf.reduce_sum(tf.square(y_true - tf.reduce_mean(y_true)))
+    r2 = 1 - ss_res/(ss_tot + tf.keras.backend.epsilon())
+    return tf.reduce_mean(r2)
+
 # define the ANN model
 
-def NN_model_define(data_input_size, data_output_size, hidlayer_1, hidlayer_2, hidlayer_3, dropout_value, learning_rate, kernel_intializer):    
+def NN_model_define(data_input_size, data_output_size, hidlayer_1, hidlayer_2, hidlayer_3, dropout_value, learning_rate, kernel_initializer):    
     optimizer=Adam(learning_rate=learning_rate)
-    model_out = tf.keras.Sequential([tf.keras.layers.Dense(hidlayer_1, input_dim=data_input_size, kernel_initializer=kernel_initializer, activation='relu'), tf.keras.layers.Dropout(dropout_value),  tf.keras.layers.Dense(hidlayer_2, kernel_initializer=kernel_intializer, activation='relu'), tf.keras.layers.Dropout(dropout_value), tf.keras.layers.Dense(hidlayer_3, kernel_initializer=kernel_initializer, activation='relu'), tf.keras.layers.Dropout(dropout_value),  tf.keras.layers.Dense(data_output_size, kernel_initializer='random_normal', activation='linear')])
+    model_out = tf.keras.Sequential([tf.keras.layers.Dense(hidlayer_1, input_dim=data_input_size, kernel_initializer=kernel_initializer, activation='relu'), tf.keras.layers.Dropout(dropout_value),  tf.keras.layers.Dense(hidlayer_2, kernel_initializer=kernel_initializer, activation='relu'), tf.keras.layers.Dropout(dropout_value), tf.keras.layers.Dense(hidlayer_3, kernel_initializer=kernel_initializer, activation='relu'), tf.keras.layers.Dropout(dropout_value),  tf.keras.layers.Dense(data_output_size, kernel_initializer=kernel_initializer, activation='linear')])
     model_out.compile(loss='mean_squared_error', optimizer=optimizer, metrics=[r2_square])
     return model_out    
 
@@ -71,7 +79,7 @@ class ML_carbon:
         if "hyperparameters" in kwargs:  # if NN hyperparameters were provided read them in, otherwise set them as defaults
             hyperparameters = kwargs["hyperparameters"]
         else:
-            hyperparameters = {"batch_size" : 32, "layer_1_size" : 60*n_inputs, "layer_2_size" : 40*n_inputs, "layer_3_size" : 20*n_inputs, "dropout_value" : 0.3, "learning_rate" : 0.001, "kernel_initializer" : "random normal", "epochs_input" : 5, "callback_input" : 3, "train-val_split" : 0.75}             
+            hyperparameters = {"batch_size" : 32, "layer_1_size" : 60*inputs.shape[1], "layer_2_size" : 40*inputs.shape[1], "layer_3_size" : 20*inputs.shape[1], "dropout_value" : 0.3, "learning_rate" : 0.001, "kernel_initializer" : "random_normal", "epochs_input" : 5, "callback_input" : 3, "train-val_split" : 0.75}             
         
         if "normalization_inputs" in kwargs:    # if there is need of normalization then normalize features - the need is expressed by providing "normalization inputs" as an argument - this is a 2D array (data x features) relatively to which the inputs are normalized (if training is performed, then the array is ideally the treaining data themselves)
             inputs_ref = kwargs["normalization_inputs"]
@@ -79,6 +87,7 @@ class ML_carbon:
             
         if "normalization_outputs" in kwargs:   # the same for outputs as for inputs
             outputs_ref = kwargs["normalization_outputs"]
+            outputs = kwargs["outputs"]
             outputs = normalize_data(outputs, outputs_ref)
             
         if "feature_names" in kwargs:   # read in the names of features, otherwise get them as default
@@ -97,30 +106,42 @@ class ML_carbon:
 
         if "model" in kwargs:   # if the model is provided as an argument then use it, otherwise develop it using the (data) inputs and outputs
             model = kwargs["model"]
+        elif "outputs" in kwargs:
+            outputs = kwargs["outputs"]
+            model = NN_model_define(inputs.shape[1], outputs.shape[1], hyperparameters["layer_1_size"], hyperparameters["layer_2_size"], hyperparameters["layer_3_size"], hyperparameters["dropout_value"], hyperparameters["learning_rate"], hyperparameters["kernel_initializer"])
+            model = NN_model_train(inputs, outputs, model, hyperparameters["epochs_input"], hyperparameters["batch_size"], hyperparameters["train-val_split"], hyperparameters["callback_input"])
         else:
-            if "outputs" in kwargs["outputs"]:
-                outputs = kwargs["outputs"]
-                model = NN_model_define(inputs.shape[1], outputs.shape[1], hyperparameters["layer_1_size"], hyperparameters["layer_2_size"], hyperparameters["layer_3_size"], hyperparameters["dropout_value"], hyperparameters["learning_rate"], hyperparameters["kernel_initializer"])
-                model = NN_model_train(inputs, outputs, model, hyperparameters["epochs_input"], hyperparameters["batch_size"], hyperparameters["train-val_split"], hyperparameters["callback_input"])
-            else:
-                print("Error: model can't be trained, since there are no labels!")
+            print("Error: model can't be trained, since there are no labels!")
 
-        if "save_model" in kwargs:
+        if "save_model" in kwargs:  # providing this argument means you want to save the model
             path_save = kwargs["save_model"]
-            model.save(path_save+"/weights")
+            self.path_save = path_save
+            save_model = True
+        else:
+            save_model = False
+        
+        self.save_model = save_model           
+        self.predicted = predict(model, inputs)
+        self.model = model
+        self.inputs = inputs
+        self.feature_names = feature_names
+        self.output_names = output_names
+
             
     def trained_model(self):   # return NN model after it is being trained
-        return model
+        if self.save_model:
+            self.model.save(self.path_save+"/weights")
+        return self.model
         
     def predicted_values(self):  # use existing NN model to predict data
-        return predict(model, inputs)
+        return self.predicted
         
     def shap_plot(self):  # use SHAP plots to enhance explainability
-        training = inputs[:round(0.8*inputs.shape[1]),:]
-        test = inputs[round(0.8*inputs.shape[1]):,:]
+        training = self.inputs[:round(0.8*inputs.shape[1]),:]
+        test = self.inputs[round(0.8*inputs.shape[1]):,:]
         background = training[np.random.choice(training.shape[0], 100, replace=False)]         
         to_explain = test[np.random.choice(test.shape[0], 80, replace=False)]          
-        explainer = shap.KernelExplainer(model, background)
+        explainer = shap.KernelExplainer(self.model, background)
         shap_values = explainer.shap_values(to_explain)
         shap.initjs()
-        shap.summary_plot(shap_values, to_explain, feature_names=feature_names, class_names=output_names, plot_type="bar")    
+        shap.summary_plot(shap_values, to_explain, feature_names=self.feature_names, class_names=self.output_names, plot_type="bar")    
