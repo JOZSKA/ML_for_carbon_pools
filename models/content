@@ -1,0 +1,1 @@
+This stores weights for a trained model using the Free run 2016-2020 data in the ../data directory. An ensemble of 15 models was trained but only weights for one of them are uploaded here (to save space).
