@@ -71,6 +71,9 @@ def normalize_data(data_norm, data_ref):
 class ML_carbon:
 
     def __init__(self, inputs, **kwargs):
+    
+        self.description = "Predict carbon pools using deep NN."
+        self.author = "Jozef Skakala"
             
         if "remove" in kwargs:    # if indices that should be removed were provided then remove them, removing indices is requested if "remove" is provided as an argument with non-trivial list of indices - one reason to remve them is to test the robustness of the model, or its dependence on specific types of inputs
             remove_indexes = kwargs["remove"]
