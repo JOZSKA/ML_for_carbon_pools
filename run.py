@@ -15,8 +15,9 @@ outputs_train_val = train_val[:,19:]
 inputs_test = train_val[:,:19]
 outputs_test = train_val[:,19:]
 
-model_init = carb.ML_carbon(inputs = inputs_train_val, outputs = outputs_train_val)
+model_init = carb.ML_carbon(inputs = inputs_train_val, outputs = outputs_train_val, save_model = "/users/modellers/jos/ML_for_carbon_pools/")
 model = model_init.trained_model()
 pred_init = carb.ML_carbon(inputs = inputs_test, model = model)
 pred = pred_init.predicted_values()
-
+shap_init = carb.ML_carbon(inputs = inputs_train_val, model = model)
+pred = shap_init.shap_plot()

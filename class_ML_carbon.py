@@ -130,15 +130,15 @@ class ML_carbon:
             
     def trained_model(self):   # return NN model after it is being trained
         if self.save_model:
-            self.model.save(self.path_save+"/weights")
+            self.model.save(self.path_save+"ML_carbon_weights.keras")
         return self.model
         
     def predicted_values(self):  # use existing NN model to predict data
         return self.predicted
         
     def shap_plot(self):  # use SHAP plots to enhance explainability
-        training = self.inputs[:round(0.8*inputs.shape[1]),:]
-        test = self.inputs[round(0.8*inputs.shape[1]):,:]
+        training = self.inputs[:round(0.8*self.inputs.shape[0]),:]
+        test = self.inputs[round(0.8*self.inputs.shape[0]):,:]
         background = training[np.random.choice(training.shape[0], 100, replace=False)]         
         to_explain = test[np.random.choice(test.shape[0], 80, replace=False)]          
         explainer = shap.KernelExplainer(self.model, background)
