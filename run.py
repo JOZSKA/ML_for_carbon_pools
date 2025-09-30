@@ -1,19 +1,21 @@
 import class_ML_carbon as carb
 import numpy as np
+from netCDF4 import Dataset
 
 
 
+inpfile = Dataset("./files/Free_run_2016-2020_data.nc")
 
-inputs=np.transpose(np.loadtxt("/users/modellers/jos/Data.txt"))
+inputs = inpfile.variables["inputs"][:].transpose()
+outputs = inpfile.variables["outputs"][:].transpose()
 
-train_val = inputs[:round(0.8*inputs.shape[0]),:]
-test = train_val = inputs[round(0.8*inputs.shape[0]):,:]
+print(np.shape(inputs))
 
-inputs_train_val = train_val[:,:19]
-outputs_train_val = train_val[:,19:]
+inputs_train_val = inputs[:round(0.8*inputs.shape[0]),:]
+inputs_test = inputs[round(0.8*inputs.shape[0]):,:]
 
-inputs_test = train_val[:,:19]
-outputs_test = train_val[:,19:]
+outputs_train_val = outputs[:round(0.8*inputs.shape[0]),:]
+outputs_test = outputs[round(0.8*inputs.shape[0]):,:]
 
 model_init = carb.ML_carbon(inputs = inputs_train_val, outputs = outputs_train_val, save_model = "/users/modellers/jos/ML_for_carbon_pools/")
 model = model_init.trained_model()
