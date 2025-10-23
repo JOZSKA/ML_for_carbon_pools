@@ -66,7 +66,14 @@ def reduce_features_PCA(inputs_before_PCA, features, n_reduced):
 def normalize_data(data_norm, data_ref):
     for var in range(0,data_norm.shape[1]):
         data_norm[:,var] = (data_norm[:,var] - data_ref[:,var].mean())/data_ref[:,var].std()
+    return data_norm
 
+#invert the normalization of inputs, or outputs
+
+def invert_normalization(data_norm, data_ref):
+    for var in range(0,data_norm.shape[1]):
+        data_norm[:,var] = data_norm[:,var]*data_ref[:,var].std() + data_ref[:,var].mean()
+    return data_norm
 
 class ML_carbon:
 
@@ -143,8 +150,14 @@ class ML_carbon:
         training = self.inputs[:round(0.8*self.inputs.shape[0]),:]
         test = self.inputs[round(0.8*self.inputs.shape[0]):,:]
         background = training[np.random.choice(training.shape[0], 100, replace=False)]         
-        to_explain = test[np.random.choice(test.shape[0], 80, replace=False)]          
+        to_explain = test[np.random.choice(test.shape[0], 80, replace=False)] 
         explainer = shap.KernelExplainer(self.model, background)
         shap_values = explainer.shap_values(to_explain)
         shap.initjs()
-        shap.summary_plot(shap_values, to_explain, feature_names=self.feature_names, class_names=self.output_names, plot_type="bar")    
+        shap.summary_plot(shap_values, to_explain, feature_names=self.feature_names, class_names=self.output_names, plot_type="bar") 
+        
+    def provide_feature_names(self):
+        return self.feature_names
+        
+    def provide_output_names(self):
+        return self.output_names   
